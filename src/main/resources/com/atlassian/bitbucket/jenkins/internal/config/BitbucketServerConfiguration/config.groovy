@@ -22,6 +22,10 @@ f.section() {
         c.select(context: app, includeUser: false, expressionAllowed: false, checkMethod: "post")
     }
 
+    f.entry(title: _("bitbucket.webhook.jenkins.root.url"), field: "webhookJenkinsRootUrl") {
+        f.textbox(placeholder: _("bitbucket.webhook.jenkins.root.url.placeholder"), checkMethod: "post")
+    }
+
     f.block() {
         f.validateButton(
                 title: _("bitbucket.test.connection"),

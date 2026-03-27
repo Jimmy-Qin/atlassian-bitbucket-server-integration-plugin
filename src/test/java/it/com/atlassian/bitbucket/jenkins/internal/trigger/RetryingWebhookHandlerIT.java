@@ -2,6 +2,7 @@ package it.com.atlassian.bitbucket.jenkins.internal.trigger;
 
 import com.atlassian.bitbucket.jenkins.internal.client.BitbucketClientFactoryProvider;
 import com.atlassian.bitbucket.jenkins.internal.client.HttpRequestExecutor;
+import com.atlassian.bitbucket.jenkins.internal.config.BitbucketPluginConfiguration;
 import com.atlassian.bitbucket.jenkins.internal.config.BitbucketTokenCredentials;
 import com.atlassian.bitbucket.jenkins.internal.credentials.BitbucketCredentials;
 import com.atlassian.bitbucket.jenkins.internal.credentials.GlobalCredentialsProvider;
@@ -30,6 +31,7 @@ import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsIterableContaining.hasItem;
 import static org.hamcrest.core.StringContains.containsString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -138,10 +140,14 @@ public class RetryingWebhookHandlerIT {
         when(converter.toBitbucketCredentials(jenkinsGlobalCredentials)).thenReturn(globalCredentials);
         when(converter.toBitbucketCredentials(JOB_CREDENTIAL_ID, null)).thenReturn(jobCredentials);
 
+        BitbucketPluginConfiguration bitbucketPluginConfiguration = mock(BitbucketPluginConfiguration.class);
+        when(bitbucketPluginConfiguration.getServerById(any())).thenReturn(Optional.empty());
+
         return new RetryingWebhookHandler(jp,
                 bitbucketClientFactoryProvider,
                 instanceBasedNameGenerator,
-                converter
+                converter,
+                bitbucketPluginConfiguration
         );
     }
 }

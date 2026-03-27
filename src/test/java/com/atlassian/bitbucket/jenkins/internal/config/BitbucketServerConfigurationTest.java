@@ -187,4 +187,34 @@ public class BitbucketServerConfigurationTest {
         serverConfiguration.setServerName(null);
         assertEquals(FormValidation.Kind.ERROR, serverConfiguration.validate().kind);
     }
+
+    @Test
+    public void testOptionalWebhookRootUrlBlankOk() {
+        assertEquals(FormValidation.Kind.OK, descriptor.doCheckWebhookJenkinsRootUrl("").kind);
+        assertEquals(FormValidation.Kind.OK, descriptor.doCheckWebhookJenkinsRootUrl(null).kind);
+    }
+
+    @Test
+    public void testOptionalWebhookRootUrlValid() {
+        assertEquals(
+                FormValidation.Kind.OK,
+                descriptor.doCheckWebhookJenkinsRootUrl("https://jenkins.example.com/jenkins/").kind);
+    }
+
+    @Test
+    public void testOptionalWebhookRootUrlInvalid() {
+        assertEquals(FormValidation.Kind.ERROR, descriptor.doCheckWebhookJenkinsRootUrl("not-a-url").kind);
+    }
+
+    @Test
+    public void testValidateInvalidWebhookRootUrl() {
+        BitbucketServerConfiguration serverConfiguration = new BitbucketServerConfiguration(
+                bbJenkins.getTokenCredentialsId(),
+                "http://localhost:7990/bitbucket",
+                UUID.randomUUID().toString()
+        );
+        serverConfiguration.setServerName("Server Name");
+        serverConfiguration.setWebhookJenkinsRootUrl("bad");
+        assertEquals(FormValidation.Kind.ERROR, serverConfiguration.validate().kind);
+    }
 }

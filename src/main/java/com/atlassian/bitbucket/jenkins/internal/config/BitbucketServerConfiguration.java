@@ -59,6 +59,8 @@ public class BitbucketServerConfiguration
     private final String id;
     private String baseUrl;
     private String serverName;
+    /** Optional Jenkins base URL for webhook callbacks when registering against this server. */
+    private String webhookJenkinsRootUrl;
 
     @DataBoundConstructor
     public BitbucketServerConfiguration(
@@ -149,12 +151,34 @@ public class BitbucketServerConfiguration
     }
 
     /**
+     * Optional public Jenkins base URL Bitbucket should call for webhooks registered for this server.
+     */
+    @Nullable
+    public String getWebhookJenkinsRootUrl() {
+        return webhookJenkinsRootUrl;
+    }
+
+    @DataBoundSetter
+    public void setWebhookJenkinsRootUrl(String webhookJenkinsRootUrl) {
+        this.webhookJenkinsRootUrl = trimToNull(webhookJenkinsRootUrl);
+    }
+
+    /**
      * Checks that the configuration is valid
      *
      * @return true if valid; false otherwise
      */
     public FormValidation validate() {
-        return FormValidation.aggregate(Arrays.asList(checkBaseUrl(baseUrl), checkServerName(serverName), checkAdminCredentialsId(adminCredentialsId)));
+        return FormValidation.aggregate(Arrays.asList(
+                checkBaseUrl(baseUrl),
+                checkServerName(serverName),
+                checkAdminCredentialsId(adminCredentialsId),
+                checkOptionalWebhookJenkinsRootUrl(webhookJenkinsRootUrl)));
+    }
+
+    /** Blank allowed; otherwise {@link com.atlassian.bitbucket.jenkins.internal.util.FormValidationUtils#checkBaseUrl(String)}. */
+    private static FormValidation checkOptionalWebhookJenkinsRootUrl(String url) {
+        return isBlank(url) ? FormValidation.ok() : checkBaseUrl(url.trim());
     }
 
     /**
@@ -233,6 +257,13 @@ public class BitbucketServerConfiguration
         public FormValidation doCheckServerName(@QueryParameter String value) {
             Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             return checkServerName(value);
+        }
+
+        @SuppressWarnings("MethodMayBeStatic")
+        @POST
+        public FormValidation doCheckWebhookJenkinsRootUrl(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+            return checkOptionalWebhookJenkinsRootUrl(value);
         }
 
         @SuppressWarnings({"MethodMayBeStatic", "unused"})

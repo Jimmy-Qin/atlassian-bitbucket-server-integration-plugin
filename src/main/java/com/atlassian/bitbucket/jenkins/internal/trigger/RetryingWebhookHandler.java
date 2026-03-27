@@ -5,6 +5,8 @@ import com.atlassian.bitbucket.jenkins.internal.client.BitbucketClientFactory;
 import com.atlassian.bitbucket.jenkins.internal.client.BitbucketClientFactoryProvider;
 import com.atlassian.bitbucket.jenkins.internal.client.BitbucketWebhookClient;
 import com.atlassian.bitbucket.jenkins.internal.client.exception.AuthorizationException;
+import com.atlassian.bitbucket.jenkins.internal.config.BitbucketPluginConfiguration;
+import com.atlassian.bitbucket.jenkins.internal.config.BitbucketServerConfiguration;
 import com.atlassian.bitbucket.jenkins.internal.credentials.BitbucketCredentials;
 import com.atlassian.bitbucket.jenkins.internal.credentials.GlobalCredentialsProvider;
 import com.atlassian.bitbucket.jenkins.internal.credentials.JenkinsToBitbucketCredentials;
@@ -21,6 +23,7 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.isBlank;
@@ -39,17 +42,20 @@ public class RetryingWebhookHandler {
     private final JenkinsToBitbucketCredentials jenkinsToBitbucketCredentials;
     private final JenkinsProvider jenkinsProvider;
     private final BitbucketClientFactoryProvider provider;
+    private final BitbucketPluginConfiguration bitbucketPluginConfiguration;
 
     @Inject
     public RetryingWebhookHandler(
             JenkinsProvider jenkinsProvider,
             BitbucketClientFactoryProvider provider,
             InstanceBasedNameGenerator instanceBasedNameGenerator,
-            JenkinsToBitbucketCredentials jenkinsToBitbucketCredentials) {
+            JenkinsToBitbucketCredentials jenkinsToBitbucketCredentials,
+            BitbucketPluginConfiguration bitbucketPluginConfiguration) {
         this.jenkinsProvider = requireNonNull(jenkinsProvider);
         this.provider = requireNonNull(provider);
         this.instanceBasedNameGenerator = requireNonNull(instanceBasedNameGenerator);
         this.jenkinsToBitbucketCredentials = requireNonNull(jenkinsToBitbucketCredentials);
+        this.bitbucketPluginConfiguration = requireNonNull(bitbucketPluginConfiguration);
     }
 
     public BitbucketWebhook register(String bitbucketBaseUrl,
@@ -60,7 +66,7 @@ public class RetryingWebhookHandler {
         if (isBlank(bitbucketBaseUrl)) {
             throw new IllegalArgumentException("Invalid Bitbucket base URL. Input - " + bitbucketBaseUrl);
         }
-        String jenkinsUrl = jenkinsProvider.get().getRootUrl();
+        String jenkinsUrl = resolveJenkinsRootUrl(repository);
         if (isBlank(jenkinsUrl)) {
             throw new IllegalArgumentException("Invalid Jenkins base url. Actual - " + jenkinsUrl);
         }
@@ -81,6 +87,29 @@ public class RetryingWebhookHandler {
                     "Failed to register webhook in bitbucket server with url " + bitbucketBaseUrl;
             throw new WebhookRegistrationFailed(message, ex);
         }
+    }
+
+    /**
+     * Uses the optional per-server custom URL when set; otherwise {@link jenkins.model.Jenkins#getRootUrl()} from
+     * {@link JenkinsProvider}.
+     */
+    private String resolveJenkinsRootUrl(BitbucketSCMRepository repository) {
+        Optional<String> configured = configuredWebhookRootUrl(repository);
+        if (configured.isPresent()) {
+            return configured.get();
+        }
+        return jenkinsProvider.get().getRootUrl();
+    }
+
+    private Optional<String> configuredWebhookRootUrl(BitbucketSCMRepository repository) {
+        if (repository == null || isBlank(repository.getServerId())) {
+            return Optional.empty();
+        }
+        return bitbucketPluginConfiguration
+                .getServerById(repository.getServerId())
+                .map(BitbucketServerConfiguration::getWebhookJenkinsRootUrl)
+                .filter(s -> !isBlank(s))
+                .map(String::trim);
     }
 
     private BitbucketWebhook registerUsingCredentials(String bitbucketUrl,
