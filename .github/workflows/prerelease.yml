@@ -1,0 +1,60 @@
+# Builds the Jenkins plugin (HPI) and publishes a GitHub pre-release with the artifact.
+# Run from Actions → "Build and pre-release" → Run workflow. Enter a new tag (e.g. v6.0.1-pre.1);
+# The pom.xml project version is set from that tag (leading "v" stripped) before the build.
+# The tag is created on the workflow commit if it does not exist yet.
+
+name: Build and pre-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag for this pre-release (e.g. v6.0.1-pre.1)'
+        required: true
+        type: string
+      release_title:
+        description: 'Pre-release title (leave empty to use the tag name)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prerelease-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-prerelease:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Set project version from tag
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          VERSION="${TAG#v}"
+          mvn -B -ntp versions:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false
+
+      - name: Build with Maven
+        run: mvn -B -ntp verify
+
+      - name: Create pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          name: ${{ github.event.inputs.release_title || github.event.inputs.tag }}
+          prerelease: true
+          generate_release_notes: true
+          files: target/*.hpi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
