@@ -16,6 +16,8 @@ import com.atlassian.bitbucket.jenkins.internal.trigger.register.WebhookHandler;
 import com.atlassian.bitbucket.jenkins.internal.trigger.register.WebhookRegisterRequest;
 import com.atlassian.bitbucket.jenkins.internal.trigger.register.WebhookRegistrationFailed;
 import hudson.model.Item;
+import jenkins.model.Jenkins;
+import org.jenkinsci.plugins.displayurlapi.DisplayURLProvider;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
@@ -60,7 +62,7 @@ public class RetryingWebhookHandler {
         if (isBlank(bitbucketBaseUrl)) {
             throw new IllegalArgumentException("Invalid Bitbucket base URL. Input - " + bitbucketBaseUrl);
         }
-        String jenkinsUrl = jenkinsProvider.get().getRootUrl();
+        String jenkinsUrl = resolveJenkinsRootUrl();
         if (isBlank(jenkinsUrl)) {
             throw new IllegalArgumentException("Invalid Jenkins base url. Actual - " + jenkinsUrl);
         }
@@ -81,6 +83,20 @@ public class RetryingWebhookHandler {
                     "Failed to register webhook in bitbucket server with url " + bitbucketBaseUrl;
             throw new WebhookRegistrationFailed(message, ex);
         }
+    }
+
+    /**
+     * Prefer Display URL API root (Custom Jenkins Root URL) when a real Jenkins singleton exists; otherwise use
+     * {@link Jenkins#getRootUrl()} from the injected instance (covers unit tests without JenkinsRule).
+     */
+    private String resolveJenkinsRootUrl() {
+        if (Jenkins.getInstanceOrNull() != null) {
+            String fromDisplayUrl = DisplayURLProvider.get().getRoot();
+            if (!isBlank(fromDisplayUrl)) {
+                return fromDisplayUrl;
+            }
+        }
+        return jenkinsProvider.get().getRootUrl();
     }
 
     private BitbucketWebhook registerUsingCredentials(String bitbucketUrl,
